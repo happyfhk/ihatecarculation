@@ -1,0 +1,1687 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphCalc — 함수 그래프 계산기</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+
+  :root {
+    --bg: #0d0f14;
+    --panel: #13161e;
+    --panel2: #1a1e2a;
+    --border: #252a38;
+    --accent: #4f9eff;
+    --accent2: #ff6b6b;
+    --text: #e2e8f0;
+    --text-dim: #64748b;
+    --text-muted: #3a4256;
+    --colors: #4f9eff, #ff6b6b, #4ade80, #f59e0b, #c084fc;
+    --c0: #4f9eff;
+    --c1: #ff6b6b;
+    --c2: #4ade80;
+    --c3: #f59e0b;
+    --c4: #c084fc;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans KR', sans-serif;
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ════════════════════════════
+     DESKTOP LAYOUT (≥ 640px)
+  ════════════════════════════ */
+
+  /* ── LEFT PANEL ── */
+  #left-panel {
+    width: 340px;
+    min-width: 260px;
+    max-width: 420px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 10;
+    transition: width 0.32s cubic-bezier(.4,0,.2,1),
+                min-width 0.32s cubic-bezier(.4,0,.2,1);
+  }
+
+  /* Desktop collapsed state */
+  #left-panel.collapsed-desktop {
+    width: 0 !important;
+    min-width: 0 !important;
+    overflow: hidden;
+  }
+
+  #panel-header {
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  #panel-header-text { flex: 1; min-width: 0; }
+
+  #panel-header h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+    white-space: nowrap;
+  }
+
+  #panel-header p {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 1px;
+    white-space: nowrap;
+  }
+
+  /* Desktop toggle button (inside panel header) */
+  #btn-toggle-panel {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text-dim);
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 13px;
+    flex-shrink: 0;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  #btn-toggle-panel:hover { border-color: var(--accent); color: var(--accent); background: rgba(79,158,255,0.08); }
+
+  /* Collapsed re-open tab on desktop */
+  #panel-reopen-tab {
+    position: absolute;
+    left: 0; top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: none;
+    border-radius: 0 8px 8px 0;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    z-index: 15;
+    padding: 10px 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+    writing-mode: vertical-rl;
+    font-size: 11px;
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 1px;
+    user-select: none;
+  }
+  #panel-reopen-tab.visible { opacity: 1; pointer-events: auto; }
+
+  /* Equations list */
+  #equations-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  #equations-container::-webkit-scrollbar { width: 4px; }
+  #equations-container::-webkit-scrollbar-track { background: transparent; }
+  #equations-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .eq-block {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .eq-block:focus-within { border-color: var(--accent); }
+  .eq-block.eq-error { border-color: var(--accent2) !important; }
+
+  .eq-header {
+    display: flex;
+    align-items: center;
+    padding: 8px 10px 4px;
+    gap: 8px;
+  }
+
+  .eq-color-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+
+  .eq-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .eq-delete {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: color 0.2s, background 0.2s;
+    line-height: 1;
+  }
+  .eq-delete:hover { color: var(--accent2); background: rgba(255,107,107,0.1); }
+
+  .eq-input {
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    width: 100%;
+    padding: 4px 10px 8px;
+    caret-color: var(--accent);
+  }
+
+  .eq-input::placeholder { color: var(--text-muted); font-size: 12px; }
+
+  .eq-err-msg {
+    font-size: 10px;
+    color: var(--accent2);
+    padding: 0 10px 6px;
+    display: none;
+  }
+
+  .eq-block.eq-error .eq-err-msg { display: block; }
+
+  .eq-domain-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--text-dim);
+    background: rgba(79,158,255,0.08);
+    border: 1px solid rgba(79,158,255,0.18);
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin: 0 10px 6px;
+    display: none;
+    width: fit-content;
+  }
+
+  .eq-block.has-domain .eq-domain-badge { display: block; }
+
+  /* Symbols toolbar */
+  #symbols-toolbar {
+    padding: 8px 12px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    flex-shrink: 0;
+  }
+
+  #symbols-toolbar label {
+    font-size: 10px;
+    color: var(--text-dim);
+    display: block;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .sym-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .sym-btn {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .sym-btn:hover, .sym-btn:active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  /* Add equation button */
+  #add-eq-btn {
+    margin: 10px 12px;
+    background: none;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    color: var(--text-dim);
+    padding: 8px;
+    cursor: pointer;
+    font-size: 12px;
+    width: calc(100% - 24px);
+    transition: border-color 0.2s, color 0.2s;
+    font-family: 'Noto Sans KR', sans-serif;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #add-eq-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Sliders */
+  #sliders-section {
+    border-top: 1px solid var(--border);
+    padding: 10px 12px;
+    max-height: 200px;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+
+  #sliders-section label {
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .slider-var {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    width: 14px;
+    flex-shrink: 0;
+  }
+
+  .slider-range {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+
+  .slider-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 6px rgba(79,158,255,0.5);
+  }
+
+  .slider-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+    width: 38px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .slider-minmax {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 2px 4px;
+    width: 42px;
+    outline: none;
+  }
+
+  /* ── RIGHT CANVAS AREA ── */
+  #right-panel {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #graph-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Controls overlay */
+  #controls {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 20;
+  }
+
+  .ctrl-btn {
+    width: 36px; height: 36px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, border-color 0.15s;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .ctrl-btn:hover { background: var(--panel2); border-color: var(--accent); color: var(--accent); }
+
+  /* Coordinates display */
+  #coords-display {
+    position: absolute;
+    bottom: 12px;
+    right: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    background: rgba(13,15,20,0.7);
+    padding: 4px 8px;
+    border-radius: 5px;
+    pointer-events: none;
+    z-index: 20;
+  }
+
+  /* Info toast */
+  #info-toast {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 12px;
+    color: var(--text-dim);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 30;
+    white-space: nowrap;
+  }
+
+  #info-toast.visible { opacity: 1; }
+
+  /* ════════════════════════════
+     MOBILE LAYOUT (< 640px)
+     패널이 하단 바텀시트로 변환
+  ════════════════════════════ */
+  @media (max-width: 639px) {
+
+    body { flex-direction: column; }
+
+    /* 캔버스가 위, 패널이 아래 */
+    #right-panel {
+      flex: 1;
+      order: 0;
+      min-height: 0;
+    }
+
+    /* ── 바텀 시트 ── */
+    #left-panel {
+      order: 1;
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      border-right: none;
+      border-top: 2px solid var(--border);
+
+      /* 높이: 열림=60vh, 닫힘=peek 높이(약 56px) */
+      height: var(--sheet-h, 62px);
+      max-height: 80vh;
+      min-height: 62px;
+      transition: height 0.32s cubic-bezier(.4,0,.2,1);
+      overflow: hidden;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 50;
+      /* 드래그 중엔 transition 끄기 위한 will-change */
+      will-change: height;
+    }
+
+    /* 열린 상태 */
+    #left-panel.sheet-open {
+      height: 62vh;
+    }
+
+    /* 패널 헤더를 드래그 핸들로 사용 */
+    #panel-header {
+      padding: 0 14px;
+      height: 56px;
+      cursor: grab;
+      touch-action: none; /* 스와이프 직접 처리 */
+      flex-shrink: 0;
+    }
+    #panel-header:active { cursor: grabbing; }
+
+    /* 상단 드래그 인디케이터 pill */
+    #drag-handle {
+      display: block;
+    }
+
+    /* 데스크탑 토글 버튼 숨기기 */
+    #btn-toggle-panel { display: none; }
+    #panel-reopen-tab { display: none; }
+
+    /* 내부 스크롤 가능하도록 */
+    #equations-container { overflow-y: auto; }
+
+    /* 모바일에서 심볼 버튼 조금 더 크게 */
+    .sym-btn { padding: 6px 10px; font-size: 13px; }
+    #add-eq-btn { padding: 10px; }
+
+    /* 좌표 표시 위치 — 패널과 겹치지 않게 */
+    #coords-display { bottom: auto; top: 10px; right: 10px; }
+
+    /* 컨트롤 버튼 왼쪽 */
+    #controls { right: auto; left: 10px; top: 10px; }
+  }
+
+  /* 드래그 핸들 pill — 기본 숨김 (모바일만 표시) */
+  #drag-handle {
+    display: none;
+    width: 36px; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 auto;
+    position: absolute;
+    top: 8px; left: 50%; transform: translateX(-50%);
+  }
+
+  /* 화살표 힌트 (열림/닫힘 상태 표시) */
+  #sheet-arrow {
+    display: none;
+    font-size: 11px;
+    color: var(--text-muted);
+    position: absolute;
+    right: 14px; top: 50%; transform: translateY(-50%);
+    transition: transform 0.3s;
+    pointer-events: none;
+  }
+
+  @media (max-width: 639px) {
+    #sheet-arrow { display: block; }
+    #left-panel.sheet-open #sheet-arrow { transform: translateY(-50%) rotate(180deg); }
+  }
+</style>
+</head>
+<body>
+
+<!-- LEFT PANEL -->
+<div id="left-panel">
+  <div id="drag-handle"></div>
+  <div id="panel-header">
+    <div id="panel-header-text">
+      <h1>GraphCalc</h1>
+      <p>함수 그래프 계산기 · 최대 5개 식</p>
+    </div>
+    <button id="btn-toggle-panel" title="패널 접기">◀</button>
+    <span id="sheet-arrow">▲</span>
+  </div>
+
+  <div id="equations-container"></div>
+
+  <button id="add-eq-btn">＋ 식 추가</button>
+
+  <!-- Symbol toolbar -->
+  <div id="symbols-toolbar">
+    <label>기호 삽입</label>
+    <div class="sym-row" id="sym-row-1">
+      <button class="sym-btn" data-ins="π">π</button>
+      <button class="sym-btn" data-ins="θ">θ</button>
+      <button class="sym-btn" data-ins="e">e</button>
+      <button class="sym-btn" data-ins="^">^</button>
+      <button class="sym-btn" data-ins="sqrt(">√(</button>
+      <button class="sym-btn" data-ins="abs(">|x|</button>
+      <button class="sym-btn" data-ins="sin(">sin</button>
+      <button class="sym-btn" data-ins="cos(">cos</button>
+      <button class="sym-btn" data-ins="tan(">tan</button>
+      <button class="sym-btn" data-ins="sec(">sec</button>
+      <button class="sym-btn" data-ins="csc(">csc</button>
+      <button class="sym-btn" data-ins="cot(">cot</button>
+      <button class="sym-btn" data-ins="ln(">ln</button>
+      <button class="sym-btn" data-ins="log(">log</button>
+      <button class="sym-btn" data-ins="∫(">∫</button>
+      <button class="sym-btn" data-ins="∞">∞</button>
+    </div>
+  </div>
+
+  <!-- Sliders for variables -->
+  <div id="sliders-section">
+    <label>변수 슬라이더</label>
+    <div id="sliders-container"><p style="font-size:11px;color:var(--text-muted)">식에 a, b, c, d를 사용하면 슬라이더가 생성됩니다.</p></div>
+  </div>
+</div>
+
+<!-- RIGHT PANEL -->
+<div id="right-panel">
+  <div id="panel-reopen-tab" title="패널 열기">▶ 식</div>
+  <canvas id="graph-canvas"></canvas>
+
+  <div id="controls">
+    <button class="ctrl-btn" id="btn-zoom-in" title="확대">＋</button>
+    <button class="ctrl-btn" id="btn-zoom-out" title="축소">－</button>
+    <button class="ctrl-btn" id="btn-reset" title="초기화">⌂</button>
+    <button class="ctrl-btn" id="btn-grid" title="격자">⊞</button>
+  </div>
+
+  <div id="coords-display">x: 0.00  y: 0.00</div>
+  <div id="info-toast"></div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════
+   GRAPH CALCULATOR — Main Script
+   ═══════════════════════════════════════════ */
+
+// ── State ──────────────────────────────────
+const GRAPH_COLORS = ['#4f9eff','#ff6b6b','#4ade80','#f59e0b','#c084fc'];
+const MAX_EQ = 5;
+const VARS = ['a','b','c','d'];
+
+let equations = [];        // {id, expr, color, visible}
+let sliderValues = {a:1, b:1, c:1, d:1};
+let sliderRanges = {a:[-5,5], b:[-5,5], c:[-5,5], d:[-5,5]};
+let detectedVars = new Set();
+let focusedInput = null;
+
+// View state
+let view = { cx:0, cy:0, scale:60 }; // scale = pixels per unit
+let showGrid = true;
+let isDragging = false;
+let dragStart = null;
+let viewAtDrag = null;
+
+let eqIdCounter = 0;
+
+// ── Canvas ─────────────────────────────────
+const canvas = document.getElementById('graph-canvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas(){
+  canvas.width = canvas.clientWidth * devicePixelRatio;
+  canvas.height = canvas.clientHeight * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  render();
+}
+
+// ── Equation management ────────────────────
+function addEquation(expr=''){
+  if(equations.length >= MAX_EQ) { showToast('최대 5개까지 추가할 수 있습니다'); return; }
+  const id = ++eqIdCounter;
+  const color = GRAPH_COLORS[equations.length % GRAPH_COLORS.length];
+  equations.push({id, expr, color, visible:true});
+  renderEquationList();
+  render();
+}
+
+function removeEquation(id){
+  equations = equations.filter(e=>e.id!==id);
+  renderEquationList();
+  updateSliders();
+  render();
+}
+
+function updateExpr(id, val){
+  const eq = equations.find(e=>e.id===id);
+  if(eq){ eq.expr = val; eq.error = ''; }
+  updateSliders();
+  render();
+}
+
+function renderEquationList(){
+  const c = document.getElementById('equations-container');
+  c.innerHTML='';
+  equations.forEach((eq,i)=>{
+    const block = document.createElement('div');
+    block.className = 'eq-block' + (eq.error?' eq-error':'');
+    block.dataset.id = eq.id;
+    block.innerHTML = `
+      <div class="eq-header">
+        <div class="eq-color-dot" style="background:${eq.color}" title="색상"></div>
+        <span class="eq-num">식 ${i+1}</span>
+        <button class="eq-delete" title="삭제">×</button>
+      </div>
+      <input class="eq-input" type="text" value="${escHtml(eq.expr)}"
+             placeholder="${getPlaceholder(i)}" spellcheck="false" autocomplete="off" />
+      <div class="eq-domain-badge"></div>
+      <div class="eq-err-msg">${eq.error||''}</div>
+    `;
+    block.querySelector('.eq-delete').addEventListener('click',()=>removeEquation(eq.id));
+    const inp = block.querySelector('.eq-input');
+    inp.addEventListener('focus',()=>{ focusedInput = inp; });
+    inp.addEventListener('input',e=>updateExpr(eq.id, e.target.value));
+    c.appendChild(block);
+  });
+}
+
+function getPlaceholder(i){
+  const ph = ['y = x^2', 'y = x*sqrt(9-x^2)  (x>0)', 'y = sin(x)  (0<x<2π)', 'y = a*x + b', '∫(0,x,t^2,t)'];
+  return ph[i]||'식을 입력하세요';
+}
+
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Slider management ──────────────────────
+function detectVars(){
+  detectedVars = new Set();
+  equations.forEach(eq=>{
+    VARS.forEach(v=>{
+      // Check if variable is used (not preceded by a letter)
+      const re = new RegExp('(?<![a-zA-Z])'+v+'(?![a-zA-Z])');
+      if(re.test(eq.expr)) detectedVars.add(v);
+    });
+  });
+}
+
+function updateSliders(){
+  detectVars();
+  const c = document.getElementById('sliders-container');
+  if(detectedVars.size===0){
+    c.innerHTML='<p style="font-size:11px;color:var(--text-muted)">식에 a, b, c, d를 사용하면 슬라이더가 생성됩니다.</p>';
+    return;
+  }
+  c.innerHTML='';
+  detectedVars.forEach(v=>{
+    const [mn,mx] = sliderRanges[v];
+    const val = sliderValues[v];
+    const row = document.createElement('div');
+    row.className='slider-row';
+    row.innerHTML=`
+      <span class="slider-var">${v}</span>
+      <input type="number" class="slider-minmax" value="${mn}" title="최솟값" step="0.5">
+      <input type="range" class="slider-range" min="${mn}" max="${mx}" step="0.01" value="${val}">
+      <input type="number" class="slider-minmax" value="${mx}" title="최댓값" step="0.5">
+      <span class="slider-val">${val.toFixed(2)}</span>
+    `;
+    const [minInp, rangeInp, maxInp] = [row.querySelectorAll('.slider-minmax')[0], row.querySelector('.slider-range'), row.querySelectorAll('.slider-minmax')[1]];
+    const valSpan = row.querySelector('.slider-val');
+
+    rangeInp.addEventListener('input',()=>{
+      sliderValues[v] = parseFloat(rangeInp.value);
+      valSpan.textContent = sliderValues[v].toFixed(2);
+      render();
+    });
+    minInp.addEventListener('change',()=>{
+      sliderRanges[v][0] = parseFloat(minInp.value);
+      rangeInp.min = minInp.value;
+      render();
+    });
+    maxInp.addEventListener('change',()=>{
+      sliderRanges[v][1] = parseFloat(maxInp.value);
+      rangeInp.max = maxInp.value;
+      render();
+    });
+    c.appendChild(row);
+  });
+}
+
+// ── Symbol insertion ───────────────────────
+document.querySelectorAll('.sym-btn').forEach(btn=>{
+  btn.addEventListener('mousedown', e=>{
+    e.preventDefault();
+    if(!focusedInput) return;
+    const ins = btn.dataset.ins;
+    const el = focusedInput;
+    const s = el.selectionStart, en = el.selectionEnd;
+    el.value = el.value.substring(0,s) + ins + el.value.substring(en);
+    el.setSelectionRange(s+ins.length, s+ins.length);
+    el.dispatchEvent(new Event('input'));
+    el.focus();
+  });
+});
+
+// ── Add equation button ────────────────────
+document.getElementById('add-eq-btn').addEventListener('click',()=>addEquation());
+
+// ── Domain / Range condition parser ────────
+// Parses conditions like: (x>0), (x>=1), (x<3), (0<x<3), (x>=-2 and x<5)
+// Also handles y conditions: (y>0), (0<y<3)
+// Returns a JS function string that evaluates to boolean given (x,y)
+function parseDomainCondition(condStr){
+  // condStr: raw string inside parentheses, e.g. "x>0" or "0<x<3" or "x>0 and x<5"
+  let s = condStr.trim();
+
+  // Normalize: replace 'and'/'&&'/'，' → '&&', 'or'/'||' → '||'
+  s = s.replace(/\band\b/gi,'&&').replace(/\bor\b/gi,'||');
+
+  // Replace ≤ ≥ ≠ → <=, >=, !=
+  s = s.replace(/≤/g,'<=').replace(/≥/g,'>=').replace(/≠/g,'!=');
+
+  // Replace π
+  s = s.replace(/π|pi/gi,'(Math.PI)');
+
+  // Handle double inequality: a < x < b  or  a <= x <= b  (also with y)
+  // Pattern: NUMBER OP VAR OP NUMBER
+  const doubleIneq = /^([^<>=!]+)(<|<=|>|>=)([xy])(<|<=|>|>=)([^<>=!]+)$/;
+  const dm = s.match(doubleIneq);
+  if(dm){
+    const [,lo, op1, varName, op2, hi] = dm;
+    // lo op1 x op2 hi  →  (lo op1 x) && (x op2 hi)
+    const loExpr = normalizeCondExpr(lo.trim());
+    const hiExpr = normalizeCondExpr(hi.trim());
+    return `((${loExpr})${op1}(${varName})&&(${varName})${op2}(${hiExpr}))`;
+  }
+
+  // Handle single or compound conditions: replace x,y as variables
+  // Normalize expressions on each side
+  s = s.replace(/(<=|>=|!=|<|>|=)/g, ' $1 ');
+  // Re-collapse doubles like < = → <=
+  s = s.replace(/< =/g,'<=').replace(/> =/g,'>=').replace(/! =/g,'!=');
+
+  // Now parse individual comparison tokens and normalize numeric expressions
+  // Split by && / ||, process each piece
+  const parts = s.split(/(&&|\|\|)/);
+  const processed = parts.map(part=>{
+    const trimmed = part.trim();
+    if(trimmed==='&&'||trimmed==='||') return trimmed;
+    // Try to normalize math expressions on both sides of comparison
+    const compMatch = trimmed.match(/^(.+?)(<=|>=|!=|<|>|==|=)(.+)$/);
+    if(compMatch){
+      const [,lhs,op,rhs] = compMatch;
+      const realOp = op==='='?'==':op;
+      return `(${normalizeCondExpr(lhs.trim())}${realOp}${normalizeCondExpr(rhs.trim())})`;
+    }
+    return trimmed;
+  });
+
+  return processed.join('');
+}
+
+function normalizeCondExpr(expr){
+  let s = expr;
+  s = s.replace(/π|pi/gi,'(Math.PI)');
+  s = s.replace(/θ|theta/gi,'x');
+  s = s.replace(/\^/g,'**');
+  s = s.replace(/\bsqrt\b/g,'Math.sqrt');
+  s = s.replace(/\babs\b/g,'Math.abs');
+  // implicit multiply: 2x → 2*x
+  s = s.replace(/(\d)([a-zA-Z])/g,'$1*$2');
+  return s;
+}
+
+// Extract domain condition from equation string
+// Returns { mainExpr, domainFn, domainStr }
+// Supports: "y = f(x)  (x > 0)"  or  "y = f(x) {0<x<3}"  or  "y = f(x), x>0"
+function extractDomain(rawExpr){
+  let expr = rawExpr.trim();
+  let domainStr = null;
+  let domainCondStr = null;
+
+  // Pattern 1: trailing (...) that looks like a condition
+  // Match last (...) that contains x or y with comparison operators
+  const parenMatch = expr.match(/^(.*?)\s*\(([^)]*(?:x|y)[^)]*(?:<=|>=|<|>|=|!=)[^)]*)\)\s*$/);
+  if(parenMatch){
+    const candidate = parenMatch[2].trim();
+    // Make sure it's a condition, not a function call (shouldn't contain 'sin', 'cos', etc.)
+    if(/[xy]\s*(?:<=|>=|<|>|!=|=)/.test(candidate) || /(?:<=|>=|<|>|!=|=)\s*[xy]/.test(candidate)){
+      expr = parenMatch[1].trim();
+      domainCondStr = candidate;
+      domainStr = `(${candidate})`;
+    }
+  }
+
+  // Pattern 2: trailing {condition}
+  if(!domainStr){
+    const braceMatch = expr.match(/^(.*?)\s*\{([^}]*(?:x|y)[^}]*(?:<=|>=|<|>|=|!=)[^}]*)\}\s*$/);
+    if(braceMatch){
+      expr = braceMatch[1].trim();
+      domainCondStr = braceMatch[2].trim();
+      domainStr = `{${domainCondStr}}`;
+    }
+  }
+
+  // Pattern 3: trailing ", condition" or "| condition"
+  if(!domainStr){
+    const commaMatch = expr.match(/^(.*?)\s*[,|]\s*([^,|]*(?:x|y)[^,|]*(?:<=|>=|<|>|=|!=)[^,|]*)\s*$/);
+    if(commaMatch){
+      expr = commaMatch[1].trim();
+      domainCondStr = commaMatch[2].trim();
+      domainStr = domainCondStr;
+    }
+  }
+
+  // Build domain function
+  let domainFn = null;
+  if(domainCondStr){
+    try {
+      const condCode = parseDomainCondition(domainCondStr);
+      let ctxStr = '';
+      VARS.forEach(v=>{ ctxStr += `const ${v}=${sliderValues[v]};`; });
+      const body = `"use strict"; ${ctxStr} return !!(${condCode});`;
+      domainFn = new Function('x','y', body);
+      // Test it doesn't throw
+      domainFn(0, 0);
+    } catch(e){
+      domainFn = null;
+      domainStr = null;
+    }
+  }
+
+  return { mainExpr: expr, domainFn, domainStr };
+}
+
+
+// Converts human notation to JS-evaluable string
+function normalizeExpr(raw, vars){
+  let s = raw.trim();
+
+  // Replace special symbols
+  s = s.replace(/π|pi/gi, '(Math.PI)');
+  s = s.replace(/∞/g, '(Infinity)');
+  s = s.replace(/θ|theta/gi, 'x');           // θ → x (각도를 x축으로 매핑)
+  s = s.replace(/e(?![a-zA-Z])/g, '(Math.E)'); // standalone e
+
+  // Integral: ∫(a,b,f(t),t) → numerical_integral(a,b,f,t)
+  // We'll handle ∫ specially below
+
+  // sec, csc, cot → 1/cos, 1/sin, cos/sin  (반드시 sin/cos/tan보다 먼저 처리)
+  s = s.replace(/\bsec\b/g,'__sec__');
+  s = s.replace(/\bcsc\b/g,'__csc__');
+  s = s.replace(/\bcot\b/g,'__cot__');
+
+  // Functions
+  s = s.replace(/\bsqrt\b/g,'Math.sqrt');
+  s = s.replace(/\babs\b/g,'Math.abs');
+  s = s.replace(/\bsin\b/g,'Math.sin');
+  s = s.replace(/\bcos\b/g,'Math.cos');
+  s = s.replace(/\btan\b/g,'Math.tan');
+  s = s.replace(/\basin\b/g,'Math.asin');
+  s = s.replace(/\bacos\b/g,'Math.acos');
+  s = s.replace(/\batan\b/g,'Math.atan');
+  s = s.replace(/\bln\b/g,'Math.log');
+  s = s.replace(/\blog\b/g,'Math.log10');
+  s = s.replace(/\bexp\b/g,'Math.exp');
+  s = s.replace(/\bfloor\b/g,'Math.floor');
+  s = s.replace(/\bceil\b/g,'Math.ceil');
+
+  // Now expand sec/csc/cot placeholders → inline lambda-style using IIFE
+  // sec(u) → (1/Math.cos(u)),  but we need to handle the argument properly.
+  // Simplest: replace token with a JS expression using a helper name that we'll declare inline.
+  // We inject __sec__ etc. as local functions via the fnBody context string instead.
+  s = s.replace(/__sec__/g,'__SEC__');
+  s = s.replace(/__csc__/g,'__CSC__');
+  s = s.replace(/__cot__/g,'__COT__');
+
+  // Power operator
+  s = s.replace(/\^/g,'**');
+
+  // Implicit multiplication: 2x → 2*x, )(  → )*(
+  s = s.replace(/(\d)([\(a-zA-Z])/g,'$1*$2');
+  s = s.replace(/(\))([\(a-zA-Z\d])/g,'$1*$2');
+  s = s.replace(/([a-zA-Z])(\()/g,'$1*$2');  // but NOT for Math.*
+  // Fix Math.*( → undo over-multiplication
+  s = s.replace(/Math\.\*(\w+)\*/g,'Math.$1*');
+  // Fix Math.xx patterns broken by the above
+  s = s.replace(/Math\*\./g, 'Math.');
+  // careful fix: Math.(word)* → Math.word (undo extra *)
+  s = s.replace(/Math\.(\w+)\*\(/g, 'Math.$1(');
+
+  return s;
+}
+
+// Build a safe evaluator function for a given expression with variable substitutions
+function buildEvalFn(expr, extraVars={}){
+  let s = normalizeExpr(expr, extraVars);
+
+  // Build context string from sliders + extras
+  let ctx = '';
+  VARS.forEach(v=>{ ctx += `var ${v}=${sliderValues[v]};`; });
+  Object.entries(extraVars).forEach(([k,val])=>{ ctx += `var ${k}=${val};`; });
+
+  const fnBody = `"use strict"; ${ctx} return (${s});`;
+  try {
+    return new Function('x','y', fnBody);
+  } catch(e){
+    return null;
+  }
+}
+
+// Evaluate y = f(x) type
+function evalY(fn, x){
+  try {
+    const v = fn(x, 0);
+    if(typeof v !== 'number' || isNaN(v)) return NaN;
+    return v;
+  } catch { return NaN; }
+}
+
+// Evaluate implicit F(x,y)=0 — returns true/false via sign method
+function evalImplicit(fn, x, y){
+  try {
+    const v = fn(x, y);
+    if(typeof v !== 'number') return NaN;
+    return v;
+  } catch { return NaN; }
+}
+
+// Numerical definite integral ∫(a,b,f(t),t) using Simpson's rule
+function numericalIntegral(aVal, bVal, innerExpr, n=200){
+  const h = (bVal-aVal)/n;
+  let sum = 0;
+  for(let i=0; i<=n; i++){
+    const t = aVal + i*h;
+    const fVal = evalInnerT(innerExpr, t);
+    const w = (i===0||i===n)?1:(i%2===0?2:4);
+    sum += w*fVal;
+  }
+  return (h/3)*sum;
+}
+
+function evalInnerT(exprStr, t){
+  let s = normalizeExpr(exprStr, {});
+  s = s.replace(/\bt\b/g, `(${t})`);
+  try { return new Function('"use strict"; return '+s)(); } catch { return 0; }
+}
+
+// Parse equation expression and determine type
+// Returns {type, fn, domainFn, domainStr, errMsg}
+// Types: 'explicit_y', 'explicit_x', 'implicit'
+function parseEquation(rawExpr){
+  if(!rawExpr.trim()) return null;
+
+  // Step 1: extract domain condition if present
+  const { mainExpr, domainFn, domainStr } = extractDomain(rawExpr);
+
+  // Step 2: handle integral notation inside main expression
+  let expr = mainExpr.trim();
+  expr = expr.replace(/∫\(([^,]+),([^,]+),([^,]+),([^)]+)\)/g, (m,a,b,f,t)=>{
+    return `__INT__(${a},${b},${JSON.stringify(f.trim())})`;
+  });
+
+  // Step 3: find = sign
+  const eqIdx = expr.indexOf('=');
+  if(eqIdx === -1){
+    return {type:'err', errMsg:'= 기호가 없습니다'};
+  }
+
+  const lhs = expr.substring(0,eqIdx).trim();
+  const rhs = expr.substring(eqIdx+1).trim();
+
+  // Pure y=f(x)
+  if(lhs === 'y'){
+    const fn = buildEvalFnIntegral(rhs);
+    if(!fn) return {type:'err', errMsg:'식 파싱 오류'};
+    return {type:'explicit_y', fn, domainFn, domainStr};
+  }
+
+  // Pure x=f(y)
+  if(lhs === 'x'){
+    const fn = buildEvalFnIntegral(rhs, true);
+    if(!fn) return {type:'err', errMsg:'식 파싱 오류'};
+    return {type:'explicit_x', fn, domainFn, domainStr};
+  }
+
+  // Otherwise: implicit F(x,y)=G(x,y) → F(x,y)-G(x,y)=0
+  const combined = `(${lhs})-(${rhs})`;
+  const fn = buildEvalFnImplicit(combined);
+  if(!fn) return {type:'err', errMsg:'음함수 파싱 오류'};
+  return {type:'implicit', fn, domainFn, domainStr};
+}
+
+function buildEvalFnIntegral(rhsRaw, swapXY=false){
+  // Handle __INT__ tokens
+  let rhs = rhsRaw;
+
+  // Replace __INT__(a,b,"f") with a computed placeholder approach
+  // We create a function that evaluates integrals at runtime
+  const intPattern = /__INT__\(([^,]+),([^,]+),([^)]+)\)/g;
+  let hasInt = intPattern.test(rhs);
+
+  if(hasInt){
+    // For integral expressions, we wrap differently
+    rhs = rhsRaw.replace(/__INT__\(([^,]+),([^,]+),"([^"]+)"\)/g, (m,a,b,f)=>{
+      const fNorm = normalizeExpr(f,{});
+      return `(()=>{
+        const __a=${normalizeExpr(a,{})}, __b=${normalizeExpr(b,{})};
+        const __n=200, __h=(__b-__a)/__n; let __s=0;
+        for(let __i=0;__i<=__n;__i++){
+          const t=__a+__i*__h;
+          const __fv=(${fNorm.replace(/\bx\b/g,'t')});
+          const __w=(__i===0||__i===__n)?1:(__i%2===0?2:4);
+          __s+=__w*__fv;
+        }
+        return (__h/3)*__s;
+      })()`;
+    });
+  }
+
+  let s = normalizeExpr(rhs, {});
+
+  const secCscCotCtx = `
+    const __SEC__ = (v)=>1/Math.cos(v);
+    const __CSC__ = (v)=>1/Math.sin(v);
+    const __COT__ = (v)=>Math.cos(v)/Math.sin(v);
+  `;
+  let ctx = secCscCotCtx;
+  VARS.forEach(v=>{ ctx += `const ${v}=${sliderValues[v]};`; });
+  const fnBody = `"use strict"; ${ctx} return (${s});`;
+
+  try {
+    if(swapXY) return new Function('y','x', fnBody);
+    return new Function('x','y', fnBody);
+  } catch(e){ return null; }
+}
+
+function buildEvalFnImplicit(raw){
+  let s = normalizeExpr(raw, {});
+  const secCscCotCtx = `
+    const __SEC__ = (v)=>1/Math.cos(v);
+    const __CSC__ = (v)=>1/Math.sin(v);
+    const __COT__ = (v)=>Math.cos(v)/Math.sin(v);
+  `;
+  let ctx = secCscCotCtx;
+  VARS.forEach(v=>{ ctx += `const ${v}=${sliderValues[v]};`; });
+  const fnBody = `"use strict"; ${ctx} return (${s});`;
+  try {
+    return new Function('x','y', fnBody);
+  } catch(e){ return null; }
+}
+
+// ── Rendering ──────────────────────────────
+function screenToWorld(sx, sy){
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  // origin is at center with slight right offset from panel
+  const ox = W/2, oy = H/2;
+  return {
+    x: (sx - ox)/view.scale + view.cx,
+    y: -(sy - oy)/view.scale + view.cy
+  };
+}
+
+function worldToScreen(wx, wy){
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  const ox = W/2, oy = H/2;
+  return {
+    sx: (wx - view.cx)*view.scale + ox,
+    sy: -(wy - view.cy)*view.scale + oy
+  };
+}
+
+function render(){
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  ctx.clearRect(0,0,W,H);
+
+  // Background
+  ctx.fillStyle = '#0d0f14';
+  ctx.fillRect(0,0,W,H);
+
+  if(showGrid) drawGrid(W,H);
+  drawAxes(W,H);
+
+  // Draw each equation
+  equations.forEach(eq=>{
+    if(!eq.expr.trim()) return;
+    const parsed = parseEquation(eq.expr);
+    if(!parsed || parsed.type==='err'){
+      eq.error = (parsed && parsed.errMsg)||'파싱 오류';
+      eq.domainStr = null;
+      return;
+    }
+    eq.error = '';
+    eq.domainStr = parsed.domainStr || null;
+    try {
+      if(parsed.type==='explicit_y') drawExplicitY(parsed.fn, eq.color, W, H, parsed.domainFn);
+      else if(parsed.type==='explicit_x') drawExplicitX(parsed.fn, eq.color, W, H, parsed.domainFn);
+      else if(parsed.type==='implicit') drawImplicit(parsed.fn, eq.color, W, H, parsed.domainFn);
+    } catch(e){
+      eq.error = '계산 오류';
+    }
+  });
+
+  // Refresh error states and domain badge in DOM
+  equations.forEach(eq=>{
+    const block = document.querySelector(`.eq-block[data-id="${eq.id}"]`);
+    if(block){
+      block.classList.toggle('eq-error', !!eq.error);
+      block.querySelector('.eq-err-msg').textContent = eq.error||'';
+      const badge = block.querySelector('.eq-domain-badge');
+      if(badge){
+        if(eq.domainStr){
+          badge.textContent = '범위: ' + eq.domainStr;
+          block.classList.add('has-domain');
+        } else {
+          badge.textContent = '';
+          block.classList.remove('has-domain');
+        }
+      }
+    }
+  });
+}
+
+function drawGrid(W,H){
+  const {scale, cx, cy} = view;
+
+  // Determine grid spacing (nice numbers)
+  let raw = 80/scale; // target ~80px per grid line
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+  let step = pow;
+  if(raw/pow > 5) step = pow*5;
+  else if(raw/pow > 2) step = pow*2;
+
+  const worldLeft = screenToWorld(0,0).x;
+  const worldRight = screenToWorld(W,0).x;
+  const worldTop = screenToWorld(0,0).y;
+  const worldBottom = screenToWorld(0,H).y;
+
+  ctx.strokeStyle = '#1e2335';
+  ctx.lineWidth = 1;
+
+  // Vertical grid lines
+  let gx = Math.ceil(worldLeft/step)*step;
+  while(gx <= worldRight){
+    const {sx} = worldToScreen(gx,0);
+    ctx.beginPath();
+    ctx.moveTo(sx,0); ctx.lineTo(sx,H);
+    ctx.stroke();
+    gx += step;
+  }
+
+  // Horizontal grid lines
+  let gy = Math.ceil(worldBottom/step)*step;
+  while(gy <= worldTop){
+    const {sy} = worldToScreen(0,gy);
+    ctx.beginPath();
+    ctx.moveTo(0,sy); ctx.lineTo(W,sy);
+    ctx.stroke();
+    gy += step;
+  }
+
+  // Labels
+  ctx.fillStyle = '#3a4256';
+  ctx.font = '10px JetBrains Mono, monospace';
+  ctx.textAlign = 'center';
+
+  gx = Math.ceil(worldLeft/step)*step;
+  while(gx <= worldRight){
+    if(Math.abs(gx) < step*0.01) { gx+=step; continue; }
+    const {sx,sy} = worldToScreen(gx,0);
+    const labelY = Math.min(Math.max(sy+14,12),H-4);
+    ctx.fillText(formatNum(gx), sx, labelY);
+    gx += step;
+  }
+
+  ctx.textAlign = 'right';
+  gy = Math.ceil(worldBottom/step)*step;
+  while(gy <= worldTop){
+    if(Math.abs(gy) < step*0.01) { gy+=step; continue; }
+    const {sx,sy} = worldToScreen(0,gy);
+    const labelX = Math.min(Math.max(sx-6,30),W-4);
+    ctx.fillText(formatNum(gy), labelX, sy+4);
+    gy += step;
+  }
+}
+
+function formatNum(n){
+  if(Math.abs(n)>=1000) return n.toExponential(1);
+  if(Number.isInteger(n)||(Math.abs(n)>=10&&n%1===0)) return n.toString();
+  return parseFloat(n.toPrecision(4)).toString();
+}
+
+function drawAxes(W,H){
+  const {sx:ox, sy:oy} = worldToScreen(0,0);
+
+  ctx.strokeStyle = '#2e3650';
+  ctx.lineWidth = 1.5;
+
+  // X axis
+  ctx.beginPath();
+  ctx.moveTo(0, oy); ctx.lineTo(W, oy);
+  ctx.stroke();
+
+  // Y axis
+  ctx.beginPath();
+  ctx.moveTo(ox, 0); ctx.lineTo(ox, H);
+  ctx.stroke();
+
+  // Origin label
+  ctx.fillStyle = '#3a4256';
+  ctx.font = '10px JetBrains Mono, monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText('0', Math.min(ox-4,W-20), Math.min(oy+12,H-4));
+
+  // Axis arrows
+  ctx.fillStyle = '#2e3650';
+  // X arrow
+  ctx.beginPath(); ctx.moveTo(W-8,oy-4); ctx.lineTo(W,oy); ctx.lineTo(W-8,oy+4); ctx.fill();
+  // Y arrow
+  ctx.beginPath(); ctx.moveTo(ox-4,8); ctx.lineTo(ox,0); ctx.lineTo(ox+4,8); ctx.fill();
+}
+
+function drawExplicitY(fn, color, W, H, domainFn=null){
+  const SAMPLES = Math.max(W*2, 800);
+  const worldLeft = screenToWorld(0,0).x;
+  const worldRight = screenToWorld(W,0).x;
+  const dx = (worldRight - worldLeft)/SAMPLES;
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  let path = new Path2D();
+  let penDown = false;
+  let prevY = null;
+
+  for(let i=0; i<=SAMPLES; i++){
+    const wx = worldLeft + i*dx;
+
+    // Domain check
+    if(domainFn){
+      let inDomain = false;
+      try { inDomain = domainFn(wx, 0); } catch { inDomain = false; }
+      if(!inDomain){ penDown = false; prevY = null; continue; }
+    }
+
+    let wy;
+    try { wy = fn(wx, 0); } catch { wy = NaN; }
+
+    if(!isFinite(wy) || isNaN(wy)){
+      penDown = false; prevY = null; continue;
+    }
+
+    // Discontinuity detection
+    if(penDown && prevY!==null && Math.abs(wy-prevY) > 30*Math.abs(dx)*view.scale){
+      penDown = false;
+    }
+
+    const {sx,sy} = worldToScreen(wx,wy);
+    if(!penDown){ path.moveTo(sx,sy); penDown=true; }
+    else { path.lineTo(sx,sy); }
+    prevY = wy;
+  }
+
+  ctx.stroke(path);
+}
+
+function drawExplicitX(fn, color, W, H, domainFn=null){
+  // x = f(y)
+  const SAMPLES = Math.max(H*2, 800);
+  const worldTop = screenToWorld(0,0).y;
+  const worldBottom = screenToWorld(0,H).y;
+  const dy = (worldTop - worldBottom)/SAMPLES;
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+
+  let path = new Path2D();
+  let penDown = false;
+  let prevX = null;
+
+  for(let i=0; i<=SAMPLES; i++){
+    const wy = worldBottom + i*dy;
+
+    // Domain check (for x=f(y), domain may constrain y)
+    if(domainFn){
+      let inDomain = false;
+      try { inDomain = domainFn(0, wy); } catch { inDomain = false; }
+      if(!inDomain){ penDown=false; prevX=null; continue; }
+    }
+
+    let wx;
+    try { wx = fn(wy, 0); } catch { wx = NaN; }
+    if(!isFinite(wx)||isNaN(wx)){ penDown=false; prevX=null; continue; }
+    if(penDown && prevX!==null && Math.abs(wx-prevX)>30*Math.abs(dy)*view.scale) penDown=false;
+    const {sx,sy} = worldToScreen(wx,wy);
+    if(!penDown){ path.moveTo(sx,sy); penDown=true; }
+    else path.lineTo(sx,sy);
+    prevX = wx;
+  }
+
+  ctx.stroke(path);
+}
+
+function drawImplicit(fn, color, W, H, domainFn=null){
+  // Marching squares (simplified sign-change method)
+  const STEP = 4; // pixel step
+  const cols = Math.ceil(W/STEP)+1;
+  const rows = Math.ceil(H/STEP)+1;
+
+  // Pre-compute grid values
+  const vals = new Float32Array(cols*rows);
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const sx = c*STEP, sy = r*STEP;
+      const {x,y} = screenToWorld(sx,sy);
+      // Domain check
+      if(domainFn){
+        let inDomain = false;
+        try { inDomain = domainFn(x,y); } catch {}
+        if(!inDomain){ vals[r*cols+c] = NaN; continue; }
+      }
+      try { vals[r*cols+c] = fn(x,y); }
+      catch { vals[r*cols+c] = NaN; }
+    }
+  }
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+
+  for(let r=0;r<rows-1;r++){
+    for(let c=0;c<cols-1;c++){
+      const v00 = vals[r*cols+c];
+      const v10 = vals[r*cols+c+1];
+      const v01 = vals[(r+1)*cols+c];
+      const v11 = vals[(r+1)*cols+c+1];
+      if(isNaN(v00)||isNaN(v10)||isNaN(v01)||isNaN(v11)) continue;
+
+      // Find zero crossings on each edge
+      drawContourEdge(c*STEP,r*STEP,(c+1)*STEP,r*STEP,v00,v10);
+      drawContourEdge(c*STEP,r*STEP,c*STEP,(r+1)*STEP,v00,v01);
+    }
+  }
+  ctx.stroke();
+
+  function drawContourEdge(x0,y0,x1,y1,v0,v1){
+    if((v0>=0&&v1>=0)||(v0<0&&v1<0)) return;
+    const t = v0/(v0-v1);
+    const mx = x0+t*(x1-x0);
+    const my = y0+t*(y1-y0);
+    ctx.moveTo(mx-1,my);
+    ctx.lineTo(mx+1,my);
+  }
+}
+
+// ── Controls ───────────────────────────────
+document.getElementById('btn-zoom-in').addEventListener('click',()=>{
+  view.scale *= 1.3; render();
+});
+document.getElementById('btn-zoom-out').addEventListener('click',()=>{
+  view.scale /= 1.3; render();
+});
+document.getElementById('btn-reset').addEventListener('click',()=>{
+  view = {cx:0,cy:0,scale:60}; render();
+});
+document.getElementById('btn-grid').addEventListener('click',()=>{
+  showGrid = !showGrid;
+  document.getElementById('btn-grid').style.color = showGrid?'var(--accent)':'var(--text-dim)';
+  render();
+});
+
+// ── Mouse interactions ─────────────────────
+const rightPanel = document.getElementById('right-panel');
+
+rightPanel.addEventListener('mousedown', e=>{
+  if(e.target.closest('#controls')) return;
+  isDragging = true;
+  dragStart = {x:e.clientX, y:e.clientY};
+  viewAtDrag = {...view};
+  rightPanel.style.cursor = 'grabbing';
+});
+
+window.addEventListener('mousemove', e=>{
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const {x,y} = screenToWorld(mx,my);
+  document.getElementById('coords-display').textContent =
+    `x: ${x.toFixed(3)}  y: ${y.toFixed(3)}`;
+
+  if(!isDragging) return;
+  const ddx = (e.clientX - dragStart.x)/view.scale;
+  const ddy = (e.clientY - dragStart.y)/view.scale;
+  view.cx = viewAtDrag.cx - ddx;
+  view.cy = viewAtDrag.cy + ddy;
+  render();
+});
+
+window.addEventListener('mouseup', ()=>{
+  isDragging = false;
+  rightPanel.style.cursor = 'crosshair';
+});
+
+rightPanel.style.cursor = 'crosshair';
+
+// Scroll to zoom
+rightPanel.addEventListener('wheel', e=>{
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const wBefore = screenToWorld(mx,my);
+
+  const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
+  view.scale *= factor;
+  view.scale = Math.min(Math.max(view.scale, 4), 10000);
+
+  // Zoom toward mouse
+  const wAfter = screenToWorld(mx,my);
+  view.cx += wBefore.x - wAfter.x;
+  view.cy += wBefore.y - wAfter.y;
+  render();
+}, {passive:false});
+
+// Touch support
+let lastTouchDist = null;
+rightPanel.addEventListener('touchstart', e=>{
+  if(e.touches.length===1){
+    isDragging=true;
+    dragStart={x:e.touches[0].clientX,y:e.touches[0].clientY};
+    viewAtDrag={...view};
+  } else if(e.touches.length===2){
+    isDragging=false;
+    const dx=e.touches[0].clientX-e.touches[1].clientX;
+    const dy=e.touches[0].clientY-e.touches[1].clientY;
+    lastTouchDist=Math.hypot(dx,dy);
+  }
+},{passive:true});
+
+rightPanel.addEventListener('touchmove', e=>{
+  if(e.touches.length===1&&isDragging){
+    const ddx=(e.touches[0].clientX-dragStart.x)/view.scale;
+    const ddy=(e.touches[0].clientY-dragStart.y)/view.scale;
+    view.cx=viewAtDrag.cx-ddx; view.cy=viewAtDrag.cy+ddy;
+    render();
+  } else if(e.touches.length===2&&lastTouchDist){
+    const dx=e.touches[0].clientX-e.touches[1].clientX;
+    const dy=e.touches[0].clientY-e.touches[1].clientY;
+    const dist=Math.hypot(dx,dy);
+    view.scale*=dist/lastTouchDist;
+    view.scale=Math.min(Math.max(view.scale,4),10000);
+    lastTouchDist=dist;
+    render();
+  }
+},{passive:true});
+
+rightPanel.addEventListener('touchend',()=>{ isDragging=false; lastTouchDist=null; });
+
+// ── Toast ──────────────────────────────────
+function showToast(msg, dur=2200){
+  const t = document.getElementById('info-toast');
+  t.textContent = msg;
+  t.classList.add('visible');
+  setTimeout(()=>t.classList.remove('visible'), dur);
+}
+
+// ── Panel toggle & mobile bottom sheet ─────
+
+const leftPanel   = document.getElementById('left-panel');
+const toggleBtn   = document.getElementById('btn-toggle-panel');
+const reopenTab   = document.getElementById('panel-reopen-tab');
+const panelHeader = document.getElementById('panel-header');
+const MOBILE_BP   = 639; // px
+
+/* ── Desktop collapse toggle ── */
+function isMobile(){ return window.innerWidth <= MOBILE_BP; }
+
+function setDesktopCollapsed(collapsed){
+  leftPanel.classList.toggle('collapsed-desktop', collapsed);
+  reopenTab.classList.toggle('visible', collapsed);
+  toggleBtn.textContent = collapsed ? '▶' : '◀';
+  toggleBtn.title       = collapsed ? '패널 열기' : '패널 접기';
+  setTimeout(()=>resizeCanvas(), 340);
+}
+
+toggleBtn.addEventListener('click', ()=>{
+  if(isMobile()) return;
+  setDesktopCollapsed(!leftPanel.classList.contains('collapsed-desktop'));
+});
+
+reopenTab.addEventListener('click', ()=>{
+  setDesktopCollapsed(false);
+});
+
+/* ── Mobile bottom sheet ── */
+const PEEK_H   = 62;   // px — 닫힌 상태 높이
+const OPEN_RAT = 0.62; // 열린 상태 = 화면의 62%
+
+let sheetOpen    = false;
+let sheetDragging= false;
+let sheetStartY  = 0;
+let sheetStartH  = 0;
+let lastVelocity = 0;
+let lastTouchTime= 0;
+let lastTouchY   = 0;
+
+function openSheet(){
+  sheetOpen = true;
+  leftPanel.classList.add('sheet-open');
+  leftPanel.style.transition = 'height 0.32s cubic-bezier(.4,0,.2,1)';
+  leftPanel.style.height = '';          // CSS class handles it
+  setTimeout(()=>resizeCanvas(), 340);
+}
+
+function closeSheet(){
+  sheetOpen = false;
+  leftPanel.classList.remove('sheet-open');
+  leftPanel.style.transition = 'height 0.32s cubic-bezier(.4,0,.2,1)';
+  leftPanel.style.height = PEEK_H + 'px';
+  setTimeout(()=>resizeCanvas(), 340);
+}
+
+function toggleSheet(){
+  if(sheetOpen) closeSheet(); else openSheet();
+}
+
+/* Touch drag on panel header */
+panelHeader.addEventListener('touchstart', e=>{
+  if(!isMobile()) return;
+  sheetDragging = true;
+  sheetStartY   = e.touches[0].clientY;
+  sheetStartH   = leftPanel.offsetHeight;
+  lastVelocity  = 0;
+  lastTouchY    = sheetStartY;
+  lastTouchTime = Date.now();
+  leftPanel.style.transition = 'none'; // 드래그 중 transition 끄기
+}, {passive:true});
+
+panelHeader.addEventListener('touchmove', e=>{
+  if(!isMobile() || !sheetDragging) return;
+  const dy   = sheetStartY - e.touches[0].clientY; // 위로 드래그 → 양수
+  const newH = Math.min(
+    Math.max(sheetStartH + dy, PEEK_H),
+    window.innerHeight * 0.82
+  );
+  leftPanel.style.height = newH + 'px';
+
+  // velocity 계산
+  const now = Date.now();
+  lastVelocity  = (lastTouchY - e.touches[0].clientY) / Math.max(now - lastTouchTime, 1);
+  lastTouchY    = e.touches[0].clientY;
+  lastTouchTime = now;
+}, {passive:true});
+
+panelHeader.addEventListener('touchend', e=>{
+  if(!isMobile() || !sheetDragging) return;
+  sheetDragging = false;
+
+  const curH    = leftPanel.offsetHeight;
+  const midH    = window.innerHeight * 0.35;
+  const fastUp  = lastVelocity >  0.4;  // px/ms 기준
+  const fastDown= lastVelocity < -0.4;
+
+  if(fastUp || (!fastDown && curH > midH)){
+    openSheet();
+  } else {
+    closeSheet();
+  }
+}, {passive:true});
+
+/* 헤더 탭(드래그 없는 짧은 터치) → 토글 */
+let tapStartY = 0, tapStartTime = 0;
+panelHeader.addEventListener('touchstart', e=>{
+  if(!isMobile()) return;
+  tapStartY    = e.touches[0].clientY;
+  tapStartTime = Date.now();
+},{passive:true});
+
+panelHeader.addEventListener('touchend', e=>{
+  if(!isMobile()) return;
+  const dy  = Math.abs(tapStartY - e.changedTouches[0].clientY);
+  const dt  = Date.now() - tapStartTime;
+  if(dy < 8 && dt < 300) toggleSheet(); // 살짝 탭이면 토글
+},{passive:true});
+
+/* 반응형 — 화면 크기 바뀔 때 패널 상태 초기화 */
+window.addEventListener('resize', ()=>{
+  if(!isMobile()){
+    // 데스크탑으로 전환 시 모바일 인라인 스타일 제거
+    leftPanel.style.height = '';
+    leftPanel.classList.remove('sheet-open');
+    sheetOpen = false;
+  } else {
+    // 모바일로 전환 시 데스크탑 collapsed 제거
+    leftPanel.classList.remove('collapsed-desktop');
+    reopenTab.classList.remove('visible');
+    if(!sheetOpen) leftPanel.style.height = PEEK_H + 'px';
+  }
+  resizeCanvas();
+});
+
+/* 최초 모바일이면 peek 상태로 시작 */
+if(isMobile()){
+  leftPanel.style.height = PEEK_H + 'px';
+}
+
+
+const ro = new ResizeObserver(()=>resizeCanvas());
+ro.observe(rightPanel);
+
+// ── Init ───────────────────────────────────
+addEquation('y = sec(x)');
+addEquation('y = csc(x)');
+addEquation('y = cot(x)');
+resizeCanvas();
+document.getElementById('btn-grid').style.color = 'var(--accent)';
+</script>
+</body>
+</html>
